@@ -1,0 +1,66 @@
+##Practical Machine Learning - Coursera
+##Prediction Assignment Writeup
+
+### Executive Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.  The goal of this project is to predict the manner in which the participants did the exercise.
+
+### Loading Libraries and data
+```{r}
+library(knitr)
+library(caret)
+
+# Loading library doParallel to allow use of multiple cores if available.
+```{r}
+library(doParallel)
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+
+# Seed for reproducibility
+set.seed(2014)
+
+# Read in the training and testing data data
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv","pml-training.csv",method="auto",mode="wb")
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv","pml-testing.csv",method="auto",mode="wb")
+df.train <- read.csv("pml-training.csv",na.strings=c("","NA","#DIV/0!"))
+df.test <- read.csv("pml-testing.csv",na.strings=c("","NA","#DIV/0!"))
+
+# Eliminate variables containing NA only and other unnecessary variables
+exclude.list <- apply(df.train,2,function(x) {sum(is.na(x))})
+df.train <- df.train[,which(exclude.list == 0 )]
+exclude.list <- which (colnames(df.train) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window"))
+df.train <- df.train[,-exclude.list]
+
+exclude.list <- apply(df.test,2,function(x) {sum(is.na(x))})
+df.test <- df.test[,which(exclude.list == 0 )]
+exclude.list <- which (colnames(df.test) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window"))
+df.test <- df.test[,-exclude.list]
+```
+
+Cross validation with 5-fold is used on a subset of the training data.  The algorithm used here is `knn` for reasons of speed of execution.  The algorithm could be replaced with `rf` (Random Forest) and yield identical predictions.
+
+```{r}
+split.train <- createDataPartition(df.train$classe, p=.60, list=FALSE)
+df.train1 <- df.train[split.train,]
+df.test1 <- df.train[-split.train,]
+fit.model <- train(classe ~ ., data = df.train1, method = "knn", 
+                   trControl = trainControl(method = "cv", number = 5, allowParallel = TRUE, verboseIter = TRUE))
+fit.model
+
+# Run predictions against test data
+test.prediction <- predict(fit.model, df.test)
+test.prediction
+# Use code from course instructions to produce prediction files to submit for automated grading
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(test.prediction)
+
+```
